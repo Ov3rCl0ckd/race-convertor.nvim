@@ -19,7 +19,6 @@ function M.generate(project_name)
 
     vim.fn.mkdir(project_dir, "p")
 
-    -- 2. Find all C/C++ files
     local files = vim.fn.glob("**/*.c", false, true)
     vim.list_extend(files, vim.fn.glob("**/*.cpp", false, true))
     vim.list_extend(files, vim.fn.glob("**/*.h", false, true))
@@ -33,13 +32,11 @@ function M.generate(project_name)
     local unique_files = {}
     for _, filepath in ipairs(files) do
         if not filepath:match("^[bB]uild[/\\]") and not filepath:match("^[oO]ut[/\\]") and not filepath:match("%.vs[/\\]") then
-            -- We extract just the filename so they sit cleanly in the project directory
             local filename = vim.fn.fnamemodify(filepath, ":t")
             local dest = project_dir .. "/" .. filename
             
             vim.loop.fs_copyfile(filepath, dest)
             
-            -- Keep track to add to the XML
             local exists = false
             for _, v in ipairs(unique_files) do
                 if v == filename then exists = true end
@@ -48,7 +45,6 @@ function M.generate(project_name)
         end
     end
 
-    -- 4. Generate the .sln
     local sln_path = export_dir .. "/" .. project_name .. ".sln"
     local sln_content = string.format([[
 Microsoft Visual Studio Solution File, Format Version 12.00
@@ -80,7 +76,6 @@ EndGlobal
         sln_file:close()
     end
 
-    -- 5. Generate the .vcxproj
     local vcxproj_path = project_dir .. "/" .. project_name .. ".vcxproj"
     
     local item_group = "<ItemGroup>\n"
@@ -182,7 +177,6 @@ EndGlobal
         vcxproj_file:close()
     end
 
-    -- 6. Generate the .vcxproj.filters file for Solution Explorer magic
     local filters_path = project_dir .. "/" .. project_name .. ".vcxproj.filters"
     
     local filter_item_group = "  <ItemGroup>\n"
@@ -226,7 +220,6 @@ EndGlobal
 
     print("Created structured Visual Studio project files!")
 
-    -- 7. Compile synchronously
     print("Compiling project using MSBuild (Neovim will pause for a few seconds)...")
     local ps_script = string.format([[
         $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
