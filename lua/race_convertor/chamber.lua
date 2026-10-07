@@ -1,3 +1,6 @@
+local gathering = require('race_convertor.gathering')
+local execution = require('race_convertor.execution')
+
 local M = {}
 
 local function generate_guid()
@@ -9,43 +12,7 @@ local function generate_guid()
     end))
 end
 
-function M.generate(project_name)
-    local project_guid = generate_guid()
-    
-    local current_dir = vim.fn.getcwd()
-    local parent_dir = vim.fn.fnamemodify(current_dir, ":h")
-    local export_dir = parent_dir .. "/" .. project_name .. "_VS_Export"
-    local project_dir = export_dir .. "/" .. project_name
-
-    vim.fn.mkdir(project_dir, "p")
-
-    local files = vim.fn.glob("**/*.c", false, true)
-    vim.list_extend(files, vim.fn.glob("**/*.cpp", false, true))
-    vim.list_extend(files, vim.fn.glob("**/*.h", false, true))
-    vim.list_extend(files, vim.fn.glob("**/*.hpp", false, true))
-
-    if #files == 0 then
-        print("No .c, .cpp, or .h files found in the current directory!")
-        return
-    end
-
-    local unique_files = {}
-    for _, filepath in ipairs(files) do
-        if not filepath:match("^[bB]uild[/\\]") and not filepath:match("^[oO]ut[/\\]") and not filepath:match("%.vs[/\\]") then
-            local filename = vim.fn.fnamemodify(filepath, ":t")
-            local dest = project_dir .. "/" .. filename
-            
-            vim.loop.fs_copyfile(filepath, dest)
-            
-            local exists = false
-            for _, v in ipairs(unique_files) do
-                if v == filename then exists = true end
-            end
-            if not exists then table.insert(unique_files, filename) end
-        end
-    end
-
-    local sln_path = export_dir .. "/" .. project_name .. ".sln"
+local function generate_sln(sln_path, project_name, project_guid)
     local sln_content = string.format([[
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
@@ -75,9 +42,9 @@ EndGlobal
         sln_file:write(sln_content)
         sln_file:close()
     end
+end
 
-    local vcxproj_path = project_dir .. "/" .. project_name .. ".vcxproj"
-    
+local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique_files)
     local item_group = "<ItemGroup>\n"
     for _, file in ipairs(unique_files) do
         if file:match("%.h$") or file:match("%.hpp$") then
@@ -176,9 +143,9 @@ EndGlobal
         vcxproj_file:write(vcxproj_content)
         vcxproj_file:close()
     end
+end
 
-    local filters_path = project_dir .. "/" .. project_name .. ".vcxproj.filters"
-    
+local function generate_filters(filters_path, unique_files)
     local filter_item_group = "  <ItemGroup>\n"
     for _, file in ipairs(unique_files) do
         if file:match("%.h$") or file:match("%.hpp$") then
@@ -217,30 +184,29 @@ EndGlobal
         filters_file:write(filters_content)
         filters_file:close()
     end
+end
 
+function M.generate(project_name)
+    local project_guid = generate_guid()
+    
+    -- Phase 1: Setup and Discovery
+    local paths = gathering.setup_directories(project_name)
+    local unique_files = gathering.copy_and_find_files(paths.project_dir)
+    
+    if #unique_files == 0 then
+        print("No .c, .cpp, or .h files found in the current directory!")
+        return
+    end
+
+    -- Phase 2: Configuration 
+    generate_sln(paths.sln_path, project_name, project_guid)
+    generate_vcxproj(paths.vcxproj_path, project_name, project_guid, unique_files)
+    generate_filters(paths.filters_path, unique_files)
+    
     print("Created structured Visual Studio project files!")
 
-    print("Compiling project using MSBuild (Neovim will pause for a few seconds)...")
-    local ps_script = string.format([[
-        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-        if (Test-Path $vswhere) {
-            $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
-            if ($msbuild) {
-                & "$msbuild" "%s" -p:Configuration=Debug -p:Platform=x64 -v:m
-                exit $LASTEXITCODE
-            }
-        }
-        exit 1
-    ]], sln_path)
-
-    local cmd = { "powershell", "-NoProfile", "-Command", ps_script }
-    local result = vim.fn.system(cmd)
-    
-    if vim.v.shell_error == 0 then
-        print("Build Successful! Generated .exe and folders in: " .. project_name .. "_VS_Export")
-    else
-        print("Build failed. Open " .. project_name .. ".sln in Visual Studio to investigate.")
-    end
+    -- Phase 3: Execution
+    execution.execute_msbuild(paths.sln_path, project_name)
 end
 
 return M
