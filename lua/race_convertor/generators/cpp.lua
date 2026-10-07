@@ -1,6 +1,6 @@
 local M = {}
 
-local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique_files)
+local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique_files, vs_config)
     local item_group = "<ItemGroup>\n"
     for _, file in ipairs(unique_files) do
         if file:match("%.h$") or file:match("%.hpp$") then
@@ -25,7 +25,7 @@ local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <VCProjectVersion>17.0</VCProjectVersion>
+    <VCProjectVersion>%s</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
     <ProjectGuid>{%s}</ProjectGuid>
     <RootNamespace>%s</RootNamespace>
@@ -35,13 +35,13 @@ local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>%s</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
+    <PlatformToolset>%s</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -61,7 +61,7 @@ local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%%%%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
@@ -76,7 +76,7 @@ local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%%%%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
@@ -92,7 +92,7 @@ local function generate_vcxproj(vcxproj_path, project_name, project_guid, unique
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-]], project_guid, project_name, item_group)
+]], vs_config.vcxproj_version, project_guid, project_name, vs_config.cpp_toolset, vs_config.cpp_toolset, item_group)
 
     local vcxproj_file, err = io.open(vcxproj_path, "w")
     if vcxproj_file then
@@ -146,8 +146,8 @@ local function generate_filters(filters_path, unique_files)
     end
 end
 
-function M.generate(paths, project_name, project_guid, unique_files)
-    generate_vcxproj(paths.project_file_path, project_name, project_guid, unique_files)
+function M.generate(paths, project_name, project_guid, unique_files, vs_config)
+    generate_vcxproj(paths.project_file_path, project_name, project_guid, unique_files, vs_config)
     generate_filters(paths.filters_path, unique_files)
 end
 

@@ -1,6 +1,7 @@
 local gathering = require('race_convertor.gathering')
 local execution = require('race_convertor.execution')
 local project_types = require('race_convertor.project_types')
+local vs_versions = require('race_convertor.vs_versions')
 
 local M = {}
 
@@ -13,11 +14,11 @@ local function generate_guid()
     end))
 end
 
-local function generate_sln(sln_path, project_name, project_guid, lang_config)
+local function generate_sln(sln_path, project_name, project_guid, lang_config, vs_config)
     local sln_content = string.format([[
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version %s
+VisualStudioVersion = %s
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{%s}") = "%s", "%s\%s%s", "{%s}"
 EndProject
@@ -36,7 +37,7 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
-]], lang_config.sln_type_guid, project_name, project_name, project_name, lang_config.project_extension, project_guid, project_guid, project_guid, project_guid, project_guid)
+]], vs_config.sln_header_version, vs_config.sln_full_version, lang_config.sln_type_guid, project_name, project_name, project_name, lang_config.project_extension, project_guid, project_guid, project_guid, project_guid, project_guid)
 
     local sln_file, err = io.open(sln_path, "w")
     if sln_file then
@@ -47,7 +48,7 @@ EndGlobal
     end
 end
 
-function M.generate(project_name, language)
+function M.generate(project_name, language, vs_version)
     if type(project_name) ~= "string" or project_name == "" then
         error("[Chamber Phase Error]: 'project_name' must be provided as a non-empty string.")
     end
@@ -56,6 +57,12 @@ function M.generate(project_name, language)
     local lang_config = project_types.registry[language]
     if not lang_config then
         error(string.format("[Chamber Phase Error]: Unsupported language '%s'. Available types are: cpp", language))
+    end
+
+    vs_version = vs_version or "2022"
+    local vs_config = vs_versions.registry[tostring(vs_version)]
+    if not vs_config then
+        error(string.format("[Chamber Phase Error]: Unsupported Visual Studio version '%s'.", tostring(vs_version)))
     end
 
     local project_guid = generate_guid()
@@ -77,10 +84,10 @@ function M.generate(project_name, language)
     end
 
     -- Phase 2: Configuration 
-    generate_sln(paths.sln_path, project_name, project_guid, lang_config)
-    lang_config.generate_project_files(paths, project_name, project_guid, unique_files)
+    generate_sln(paths.sln_path, project_name, project_guid, lang_config, vs_config)
+    lang_config.generate_project_files(paths, project_name, project_guid, unique_files, vs_config)
     
-    print(string.format("Created structured Visual Studio project files for %s!", language))
+    print(string.format("Created structured Visual Studio %s project files for %s!", vs_version, language))
 
     -- Phase 3: Execution
     execution.execute_msbuild(paths.sln_path, project_name)
