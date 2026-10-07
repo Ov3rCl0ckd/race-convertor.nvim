@@ -1,0 +1,12 @@
+# Neovim
+*~
+*.swp
+
+# Visual Studio / Exports
+*_VS_Export/
+.vs/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.tlog
